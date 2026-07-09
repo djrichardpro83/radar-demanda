@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radar de Demanda — Globacor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --bg: #0A1626;
+    --panel: #0F2138;
+    --panel-2: #14273F;
+    --line: #23405F;
+    --text: #E7EEF6;
+    --muted: #7C93AC;
+    --sweep: #4ADE9C;
+    --amber: #F2B84B;
+    --red: #E6584F;
+    --font-head: 'Space Grotesk', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background: radial-gradient(ellipse at 20% 0%, #10233C 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height:100vh;
+    padding: 28px 20px 60px;
+  }
+  .wrap{ max-width: 1180px; margin: 0 auto; }
+
+  header{ display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px; margin-bottom:26px; border-bottom:1px solid var(--line); padding-bottom:18px;}
+  h1{ font-family: var(--font-head); font-weight:700; font-size: 28px; letter-spacing: -0.01em; }
+  h1 span{ color: var(--sweep); }
+  .sub{ color:var(--muted); font-size:12.5px; margin-top:6px; max-width:520px; line-height:1.5;}
+  .badge{ font-size:11px; color:var(--muted); border:1px solid var(--line); padding:5px 10px; border-radius:20px; letter-spacing:.04em;}
+
+  .grid{ display:grid; grid-template-columns: 360px 1fr; gap:20px; }
+  @media (max-width: 900px){ .grid{ grid-template-columns: 1fr; } }
+
+  .panel{ background: var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; }
+  .panel + .panel{ margin-top:20px; }
+  .panel h2{ font-family: var(--font-head); font-size:14px; letter-spacing:.03em; text-transform:uppercase; color:var(--muted); margin-bottom:14px; display:flex; align-items:center; gap:8px;}
+  .dot{ width:6px; height:6px; border-radius:50%; background:var(--sweep); box-shadow:0 0 8px var(--sweep); }
+
+  .tabs{ display:flex; gap:6px; margin-bottom:14px; }
+  .tab{ flex:1; text-align:center; padding:8px 6px; border-radius:8px; font-size:11.5px; cursor:pointer; color:var(--muted); border:1px solid var(--line); transition:.15s; }
+  .tab.active{ background: var(--panel-2); color:var(--text); border-color: var(--sweep); }
+
+  .dropzone{ border:1.5px dashed var(--line); border-radius:10px; padding:22px 14px; text-align:center; font-size:12px; color:var(--muted); cursor:pointer; transition:.15s; position:relative; overflow:hidden;}
+  .dropzone.drag{ border-color: var(--sweep); color:var(--sweep); background: rgba(74,222,156,0.05); }
+  .dropzone img{ max-width:100%; max-height:140px; border-radius:6px; margin-top:10px; }
+  .dropzone .hint{ font-size:10.5px; margin-top:4px; opacity:.7; }
+
+  label{ display:block; font-size:11px; color:var(--muted); margin: 12px 0 5px; }
+  input[type=text], input[type=number]{
+    width:100%; background: var(--panel-2); border:1px solid var(--line); border-radius:8px;
+    color:var(--text); padding:9px 10px; font-family:var(--font-mono); font-size:12.5px;
+  }
+  input:focus{ outline:none; border-color: var(--sweep); }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+  button{ font-family: var(--font-head); font-weight:600; font-size:12.5px; cursor:pointer; border:none; border-radius:8px; padding:10px 14px; letter-spacing:.02em;}
+  .btn-primary{ background: var(--sweep); color:#06231A; width:100%; margin-top:16px;}
+  .btn-primary:disabled{ opacity:.45; cursor:not-allowed; }
+  .btn-ghost{ background:transparent; color:var(--muted); border:1px solid var(--line); font-size:11px; padding:6px 10px;}
+  .btn-ghost:hover{ color:var(--text); border-color:var(--sweep); }
+
+  .status{ font-size:11px; color:var(--muted); margin-top:8px; min-height:14px; }
+  .status.err{ color: var(--red); }
+  .status.ok{ color: var(--sweep); }
+
+  /* Radar visualization */
+  .radar-box{ display:flex; gap:24px; flex-wrap:wrap; align-items:center; }
+  canvas#radarCanvas{ flex-shrink:0; }
+  .legend{ font-size:11px; color:var(--muted); display:flex; flex-direction:column; gap:8px; }
+  .legend-item{ display:flex; align-items:center; gap:8px; }
+  .legend-swatch{ width:9px; height:9px; border-radius:50%; }
+
+  /* Results */
+  .score-hero{ display:flex; align-items:center; gap:20px; flex-wrap:wrap; margin-bottom:18px; }
+  .score-num{ font-family:var(--font-head); font-size:52px; font-weight:700; line-height:1; }
+  .score-label{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  .verdict-pill{ font-family:var(--font-head); font-size:12px; font-weight:600; padding:6px 14px; border-radius:20px; text-transform:uppercase; letter-spacing:.03em;}
+  .v-verde{ background: rgba(74,222,156,.15); color:var(--sweep); border:1px solid var(--sweep);}
+  .v-amarillo{ background: rgba(242,184,75,.15); color:var(--amber); border:1px solid var(--amber);}
+  .v-rojo{ background: rgba(230,88,79,.15); color:var(--red); border:1px solid var(--red);}
+
+  table{ width:100%; border-collapse:collapse; font-size:12px; margin-top:6px;}
+  td, th{ padding:8px 6px; border-bottom:1px solid var(--line); text-align:left; }
+  th{ color:var(--muted); font-weight:500; text-transform:uppercase; font-size:10.5px; letter-spacing:.04em;}
+  td.num{ text-align:right; font-family:var(--font-mono); }
+
+  .judgment{ background: var(--panel-2); border-left:3px solid var(--sweep); padding:14px 16px; border-radius:0 8px 8px 0; font-size:12.5px; line-height:1.6; color:#CFE0EE; margin-top:16px;}
+
+  /* History */
+  .hist-item{ display:flex; justify-content:space-between; align-items:center; padding:11px 0; border-bottom:1px solid var(--line); font-size:12px; cursor:pointer; }
+  .hist-item:hover{ color: var(--sweep); }
+  .hist-item:last-child{ border-bottom:none; }
+  .hist-name{ font-family:var(--font-head); font-weight:600; }
+  .hist-meta{ color:var(--muted); font-size:10.5px; margin-top:2px; }
+  .hist-score{ font-family:var(--font-head); font-weight:700; font-size:16px; }
+  .empty{ color:var(--muted); font-size:12px; padding:16px 0; text-align:center; }
+
+  .flex-between{ display:flex; justify-content:space-between; align-items:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>Radar de <span>Demanda</span></h1>
+      <div class="sub">Mide viabilidad de nichos cruzando señal de ventas en MercadoLibre + interés en META Ads, contra el margen real de importación. Globacor / MERCADATA.</div>
+    </div>
+    <div class="badge" id="trmBadge">TRM: — COP/USD</div>
+  </header>
+
+  <div class="grid">
+
+    <!-- LEFT: INPUT -->
+    <div>
+      <div class="panel">
+        <h2><span class="dot"></span>1. Datos del nicho</h2>
+        <label>Nombre del nicho / producto</label>
+        <input type="text" id="nicheName" placeholder="Ej: Cargador GaN 240W">
+
+        <div class="tabs" style="margin-top:14px;">
+          <div class="tab active" data-tab="ml">MercadoLibre</div>
+          <div class="tab" data-tab="meta">META</div>
+        </div>
+
+        <div id="tab-ml">
+          <div class="dropzone" id="dropML">
+            <div>📎 Pega o arrastra captura del listado ML</div>
+            <div class="hint">Ctrl+V con la imagen copiada</div>
+          </div>
+          <div class="row2">
+            <div><label>Ventas visibles</label><input type="number" id="mlVentas" placeholder="ej: 45"></div>
+            <div><label>Reviews</label><input type="number" id="mlReviews" placeholder="ej: 120"></div>
+          </div>
+          <div class="row2">
+            <div><label>Rating (0-5)</label><input type="number" id="mlRating" step="0.1" placeholder="ej: 4.6"></div>
+            <div><label>Precio venta (COP)</label><input type="number" id="mlPrecio" placeholder="ej: 65000"></div>
+          </div>
+        </div>
+
+        <div id="tab-meta" style="display:none;">
+          <div class="dropzone" id="dropMeta">
+            <div>📎 Pega o arrastra captura del anuncio META</div>
+            <div class="hint">Ctrl+V con la imagen copiada</div>
+          </div>
+          <div class="row2">
+            <div><label>Me gusta</label><input type="number" id="metaLikes" placeholder="ej: 230"></div>
+            <div><label>Comentarios</label><input type="number" id="metaComments" placeholder="ej: 34"></div>
+          </div>
+          <div class="row2">
+            <div><label>Compartidos</label><input type="number" id="metaShares" placeholder="ej: 12"></div>
+            <div><label>Alcance</label><input type="number" id="metaReach" placeholder="ej: 15000"></div>
+          </div>
+        </div>
+
+        <div class="status" id="visionStatus"></div>
+      </div>
+
+      <div class="panel">
+        <h2><span class="dot"></span>2. Costos de importación</h2>
+        <div class="row2">
+          <div><label>FOB unitario (USD)</label><input type="number" id="finFob" placeholder="ej: 3.20"></div>
+          <div><label>Arancel (%)</label><input type="number" id="finArancel" placeholder="ej: 15"></div>
+        </div>
+        <div class="row2">
+          <div><label>IVA (%)</label><input type="number" id="finIva" value="19"></div>
+          <div><label>Comisión ML (%)</label><input type="number" id="finComision" value="16"></div>
+        </div>
+        <label>TRM (COP/USD)</label>
+        <input type="number" id="finTrm" placeholder="ej: 4050">
+
+        <button class="btn-primary" id="calcBtn">Calcular y guardar en el radar</button>
+        <div class="status" id="calcStatus"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: RESULTS + RADAR + HISTORY -->
+    <div>
+      <div class="panel">
+        <h2><span class="dot"></span>Radar acumulado</h2>
+        <div class="radar-box">
+          <canvas id="radarCanvas" width="280" height="280"></canvas>
+          <div class="legend">
+            <div class="legend-item"><div class="legend-swatch" style="background:var(--sweep)"></div> Verde — margen ≥25%</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:var(--amber)"></div> Amarillo — margen 10-24%</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:var(--red)"></div> Rojo — margen &lt;10%</div>
+            <div style="margin-top:6px; opacity:.7;">Distancia al centro = score de demanda (0-100)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="resultsPanel" style="display:none;">
+        <h2><span class="dot"></span>Resultado — <span id="resultName"></span></h2>
+        <div class="score-hero">
+          <div>
+            <div class="score-num" id="scoreNum">0</div>
+            <div class="score-label">Score de demanda /100</div>
+          </div>
+          <div id="verdictPill" class="verdict-pill">—</div>
+        </div>
+        <table>
+          <tr><th>Componente</th><th class="num">Valor</th></tr>
+          <tr><td>Señal ML (ventas+reviews+rating)</td><td class="num" id="rowMl">—</td></tr>
+          <tr><td>Señal META (engagement)</td><td class="num" id="rowMeta">—</td></tr>
+          <tr><td>Costo landed unitario</td><td class="num" id="rowLanded">—</td></tr>
+          <tr><td>Margen bruto</td><td class="num" id="rowMargen">—</td></tr>
+        </table>
+        <div class="judgment" id="judgmentBox"></div>
+      </div>
+
+      <div class="panel">
+        <div class="flex-between">
+          <h2 style="margin-bottom:0;"><span class="dot"></span>Historial de nichos</h2>
+          <button class="btn-ghost" id="clearHistBtn">Borrar historial</button>
+        </div>
+        <div id="historyList" style="margin-top:10px;"><div class="empty">Todavía no evaluaste ningún nicho.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- state ----------
+let images = { ml: null, meta: null };
+let history = [];
+
+// ---------- tabs ----------
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('tab-ml').style.display = t.dataset.tab==='ml' ? 'block':'none';
+    document.getElementById('tab-meta').style.display = t.dataset.tab==='meta' ? 'block':'none';
+  });
+});
+
+// ---------- image paste/drop handling ----------
+function setupDropzone(el, key, onExtracted){
+  const handleFile = (file) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const dataUrl = e.target.result;
+      images[key] = dataUrl;
+      el.innerHTML = `<img src="${dataUrl}"><div class="hint">Imagen cargada — analizando con IA...</div>`;
+      await extractFromImage(dataUrl, key);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  el.addEventListener('paste', (e)=>{});
+  el.addEventListener('dragover', (e)=>{ e.preventDefault(); el.classList.add('drag'); });
+  el.addEventListener('dragleave', ()=> el.classList.remove('drag'));
+  el.addEventListener('drop', (e)=>{
+    e.preventDefault(); el.classList.remove('drag');
+    const file = e.dataTransfer.files[0];
+    if(file) handleFile(file);
+  });
+  el.addEventListener('click', ()=>{
+    el.setAttribute('tabindex','0');
+    el.focus();
+  });
+}
+setupDropzone(document.getElementById('dropML'), 'ml');
+setupDropzone(document.getElementById('dropMeta'), 'meta');
+
+// global paste listener (routes to active tab)
+document.addEventListener('paste', (e)=>{
+  const items = e.clipboardData.items;
+  for(let item of items){
+    if(item.type.indexOf('image')!==-1){
+      const activeTab = document.querySelector('.tab.active').dataset.tab;
+      const file = item.getAsFile();
+      const reader = new FileReader();
+      reader.onload = async (ev)=>{
+        const dataUrl = ev.target.result;
+        images[activeTab] = dataUrl;
+        const el = activeTab==='ml' ? document.getElementById('dropML') : document.getElementById('dropMeta');
+        el.innerHTML = `<img src="${dataUrl}"><div class="hint">Imagen cargada — analizando con IA...</div>`;
+        await extractFromImage(dataUrl, activeTab);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+});
+
+// ---------- Claude vision extraction ----------
+async function extractFromImage(dataUrl, key){
+  const statusEl = document.getElementById('visionStatus');
+  statusEl.textContent = 'Analizando imagen con IA...';
+  statusEl.className = 'status';
+  try{
+    const mediaType = dataUrl.substring(5, dataUrl.indexOf(';'));
+    const base64 = dataUrl.split(',')[1];
+
+    const prompt = key === 'ml'
+      ? `Analiza esta captura de un listado de MercadoLibre. Devuelve SOLO un JSON (sin texto adicional, sin backticks) con estos campos exactos: {"ventas": number|null, "reviews": number|null, "rating": number|null, "precio_cop": number|null}. Si un dato no es visible en la imagen, usa null. "ventas" es el número de "vendidos" (ej "+50 vendidos" -> 50).`
+      : `Analiza esta captura de un anuncio o publicación de META (Facebook/Instagram). Devuelve SOLO un JSON (sin texto adicional, sin backticks) con estos campos exactos: {"likes": number|null, "comentarios": number|null, "compartidos": number|null, "alcance": number|null}. Si un dato no es visible, usa null.`;
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 500,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+            { type: "text", text: prompt }
+          ]
+        }]
+      })
+    });
+    const data = await response.json();
+    const textBlocks = (data.content || []).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+    const clean = textBlocks.replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(clean);
+
+    if(key === 'ml'){
+      if(parsed.ventas != null) document.getElementById('mlVentas').value = parsed.ventas;
+      if(parsed.reviews != null) document.getElementById('mlReviews').value = parsed.reviews;
+      if(parsed.rating != null) document.getElementById('mlRating').value = parsed.rating;
+      if(parsed.precio_cop != null) document.getElementById('mlPrecio').value = parsed.precio_cop;
+    } else {
+      if(parsed.likes != null) document.getElementById('metaLikes').value = parsed.likes;
+      if(parsed.comentarios != null) document.getElementById('metaComments').value = parsed.comentarios;
+      if(parsed.compartidos != null) document.getElementById('metaShares').value = parsed.compartidos;
+      if(parsed.alcance != null) document.getElementById('metaReach').value = parsed.alcance;
+    }
+    statusEl.textContent = 'Datos extraídos — revisa y ajusta si hace falta.';
+    statusEl.className = 'status ok';
+  }catch(err){
+    statusEl.textContent = 'No se pudo leer la imagen automáticamente. Completa los campos a mano.';
+    statusEl.className = 'status err';
+  }
+}
+
+// ---------- scoring ----------
+function calcMlScore(){
+  const ventas = parseFloat(document.getElementById('mlVentas').value) || 0;
+  const reviews = parseFloat(document.getElementById('mlReviews').value) || 0;
+  const rating = parseFloat(document.getElementById('mlRating').value) || 0;
+  // transparent weighted formula, capped 0-100
+  const score = Math.min(100, (ventas*0.6) + (reviews*0.35) + (rating*8));
+  return Math.round(score);
+}
+function calcMetaScore(){
+  const likes = parseFloat(document.getElementById('metaLikes').value) || 0;
+  const comments = parseFloat(document.getElementById('metaComments').value) || 0;
+  const shares = parseFloat(document.getElementById('metaShares').value) || 0;
+  const reach = parseFloat(document.getElementById('metaReach').value) || 0;
+  const engagement = likes + (comments*2) + (shares*3);
+  const reachFactor = reach > 0 ? Math.min(1, engagement / (reach*0.03)) : 0;
+  const score = Math.min(100, (engagement*0.15) + (reachFactor*40));
+  return Math.round(score);
+}
+function calcFinancials(){
+  const fob = parseFloat(document.getElementById('finFob').value) || 0;
+  const arancelPct = parseFloat(document.getElementById('finArancel').value) || 0;
+  const ivaPct = parseFloat(document.getElementById('finIva').value) || 19;
+  const comisionPct = parseFloat(document.getElementById('finComision').value) || 16;
+  const trm = parseFloat(document.getElementById('finTrm').value) || 0;
+  const precioVentaCop = parseFloat(document.getElementById('mlPrecio').value) || 0;
+
+  const fobCop = fob * trm;
+  const arancelCop = fobCop * (arancelPct/100);
+  const baseIva = fobCop + arancelCop;
+  const ivaCop = baseIva * (ivaPct/100);
+  const landedCop = fobCop + arancelCop + ivaCop;
+
+  const comisionCop = precioVentaCop * (comisionPct/100);
+  const gananciaCop = precioVentaCop - landedCop - comisionCop;
+  const margenPct = precioVentaCop > 0 ? (gananciaCop / precioVentaCop) * 100 : 0;
+
+  return { fobCop, arancelCop, ivaCop, landedCop, comisionCop, gananciaCop, margenPct, precioVentaCop };
+}
+function verdictFromMargen(margenPct){
+  if(margenPct >= 25) return {label:'Verde', cls:'v-verde', color:'#4ADE9C'};
+  if(margenPct >= 10) return {label:'Amarillo', cls:'v-amarillo', color:'#F2B84B'};
+  return {label:'Rojo', cls:'v-rojo', color:'#E6584F'};
+}
+
+function buildJudgment(mlScore, metaScore, margenPct, verdict, nombre){
+  const parts = [];
+  if(mlScore >= 60) parts.push(`${nombre} ya tiene tracción probada en ML (score ${mlScore}/100) — demanda validada, no hay que crearla desde cero.`);
+  else if(mlScore >= 25) parts.push(`${nombre} tiene señal moderada en ML (score ${mlScore}/100) — hay demanda pero no está saturada.`);
+  else parts.push(`${nombre} tiene señal baja en ML (score ${mlScore}/100) — o el nicho es nuevo, o nadie lo está vendiendo bien todavía.`);
+
+  if(metaScore >= 50) parts.push(`El engagement en META es alto (${metaScore}/100), lo que sugiere que el CPV de campaña puede ser más bajo — la gente ya reacciona al producto.`);
+  else if(metaScore > 0) parts.push(`El engagement en META es bajo (${metaScore}/100) — probablemente vas a pagar más por conversión al inicio.`);
+  else parts.push(`No cargaste datos de META todavía — el radar solo está viendo la mitad de la demanda (marketplace, no intención publicitaria).`);
+
+  if(verdict.label === 'Rojo') parts.push(`El margen (${margenPct.toFixed(1)}%) no aguanta este costo landed — antes de pedir, hay que bajar FOB, subir precio de venta, o buscar otro proveedor.`);
+  else if(verdict.label === 'Amarillo') parts.push(`Margen ajustado (${margenPct.toFixed(1)}%) — funciona en volumen si el flete real no se come el resto. Fase 2: cotizar flete real, no estimado.`);
+  else parts.push(`Margen sólido (${margenPct.toFixed(1)}%) — combinado con la señal de demanda, este nicho pasa el filtro. Foco: validar MOQ con el proveedor.`);
+
+  return parts.join(' ');
+}
+
+// ---------- radar canvas ----------
+function drawRadar(){
+  const canvas = document.getElementById('radarCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W/2, cy = H/2, maxR = W/2 - 24;
+
+  ctx.clearRect(0,0,W,H);
+
+  // rings
+  ctx.strokeStyle = '#23405F';
+  ctx.lineWidth = 1;
+  for(let i=1;i<=4;i++){
+    ctx.beginPath();
+    ctx.arc(cx, cy, (maxR/4)*i, 0, Math.PI*2);
+    ctx.stroke();
+  }
+  // crosshair
+  ctx.beginPath();
+  ctx.moveTo(cx-maxR, cy); ctx.lineTo(cx+maxR, cy);
+  ctx.moveTo(cx, cy-maxR); ctx.lineTo(cx, cy+maxR);
+  ctx.stroke();
+
+  // sweep gradient (decorative, static angle)
+  const grad = ctx.createConicGradient ? ctx.createConicGradient(-Math.PI/2, cx, cy) : null;
+  if(grad){
+    grad.addColorStop(0, 'rgba(74,222,156,0.18)');
+    grad.addColorStop(0.15, 'rgba(74,222,156,0)');
+    grad.addColorStop(1, 'rgba(74,222,156,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, maxR, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // plot points
+  const n = history.length;
+  history.forEach((h, i)=>{
+    const angle = (i / Math.max(n,1)) * Math.PI*2 - Math.PI/2;
+    const r = (Math.min(h.score,100)/100) * maxR;
+    const x = cx + Math.cos(angle)*r;
+    const y = cy + Math.sin(angle)*r;
+    const color = h.verdict === 'Verde' ? '#4ADE9C' : h.verdict === 'Amarillo' ? '#F2B84B' : '#E6584F';
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI*2);
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+}
+
+// ---------- history storage (localStorage — versión standalone para GitHub Pages) ----------
+const STORAGE_KEY = 'radar_demanda_globacor_v2';
+
+async function loadHistory(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    history = raw ? JSON.parse(raw) : [];
+    history.sort((a,b)=> b.timestamp - a.timestamp);
+  }catch(e){
+    history = [];
+  }
+  renderHistory();
+  drawRadar();
+}
+
+async function saveNiche(entry){
+  history.unshift(entry);
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+  }catch(e){
+    console.error('No se pudo guardar en localStorage', e);
+  }
+  renderHistory();
+  drawRadar();
+}
+
+function renderHistory(){
+  const el = document.getElementById('historyList');
+  if(history.length===0){
+    el.innerHTML = '<div class="empty">Todavía no evaluaste ningún nicho.</div>';
+    return;
+  }
+  el.innerHTML = history.map(h=>{
+    const color = h.verdict==='Verde' ? '#4ADE9C' : h.verdict==='Amarillo' ? '#F2B84B' : '#E6584F';
+    const date = new Date(h.timestamp).toLocaleDateString('es-CO', {day:'numeric', month:'short'});
+    return `<div class="hist-item" data-ts="${h.timestamp}">
+      <div>
+        <div class="hist-name">${h.nombre}</div>
+        <div class="hist-meta">${date} · margen ${h.margenPct.toFixed(1)}% · ML ${h.mlScore} / META ${h.metaScore}</div>
+      </div>
+      <div class="hist-score" style="color:${color}">${h.score}</div>
+    </div>`;
+  }).join('');
+
+  el.querySelectorAll('.hist-item').forEach(item=>{
+    item.addEventListener('click', ()=>{
+      const ts = parseFloat(item.dataset.ts);
+      const entry = history.find(h=>h.timestamp===ts);
+      if(entry) showResults(entry);
+    });
+  });
+}
+
+document.getElementById('clearHistBtn').addEventListener('click', async ()=>{
+  if(!confirm('¿Borrar todo el historial de nichos evaluados? No se puede deshacer.')) return;
+  history = [];
+  localStorage.removeItem(STORAGE_KEY);
+  renderHistory();
+  drawRadar();
+  document.getElementById('resultsPanel').style.display = 'none';
+});
+
+// ---------- results display ----------
+function showResults(entry){
+  document.getElementById('resultsPanel').style.display = 'block';
+  document.getElementById('resultName').textContent = entry.nombre;
+  document.getElementById('scoreNum').textContent = entry.score;
+  const v = verdictFromMargen(entry.margenPct);
+  const pill = document.getElementById('verdictPill');
+  pill.textContent = v.label;
+  pill.className = 'verdict-pill ' + v.cls;
+
+  document.getElementById('rowMl').textContent = entry.mlScore + ' /100';
+  document.getElementById('rowMeta').textContent = entry.metaScore + ' /100';
+  document.getElementById('rowLanded').textContent = '$' + Math.round(entry.landedCop).toLocaleString('es-CO') + ' COP';
+  document.getElementById('rowMargen').textContent = entry.margenPct.toFixed(1) + '%';
+
+  document.getElementById('judgmentBox').textContent = entry.judgment;
+}
+
+// ---------- main calc button ----------
+document.getElementById('calcBtn').addEventListener('click', async ()=>{
+  const statusEl = document.getElementById('calcStatus');
+  const nombre = document.getElementById('nicheName').value.trim();
+  if(!nombre){
+    statusEl.textContent = 'Ponle nombre al nicho antes de calcular.';
+    statusEl.className = 'status err';
+    return;
+  }
+  const trm = parseFloat(document.getElementById('finTrm').value);
+  if(!trm){
+    statusEl.textContent = 'Falta la TRM para calcular el costo en COP.';
+    statusEl.className = 'status err';
+    return;
+  }
+
+  const mlScore = calcMlScore();
+  const metaScore = calcMetaScore();
+  const fin = calcFinancials();
+  const overallDemand = Math.round(mlScore*0.6 + metaScore*0.4);
+  const verdict = verdictFromMargen(fin.margenPct);
+  const judgment = buildJudgment(mlScore, metaScore, fin.margenPct, verdict, nombre);
+
+  const entry = {
+    timestamp: Date.now(),
+    nombre,
+    score: overallDemand,
+    mlScore, metaScore,
+    landedCop: fin.landedCop,
+    margenPct: fin.margenPct,
+    verdict: verdict.label,
+    judgment
+  };
+
+  await saveNiche(entry);
+  showResults(entry);
+
+  statusEl.textContent = 'Guardado en el radar.';
+  statusEl.className = 'status ok';
+  document.getElementById('trmBadge').textContent = `TRM: ${trm.toLocaleString('es-CO')} COP/USD`;
+});
+
+// ---------- init ----------
+loadHistory();
+</script>
+</body>
+</html>
