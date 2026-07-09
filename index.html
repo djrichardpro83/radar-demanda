@@ -171,8 +171,11 @@
         <div class="row2"><div><label>Seguro (% del FOB)</label><input type="number" id="finSeguro" value="1"></div><div><label>Arancel (%)</label><input type="number" id="finArancel"></div></div>
         <div class="note">Sin cotización todavía: metelos con tu mejor estimado (ej. flete LCL consolidado suele rondar 15-30% del valor FOB en envíos chicos; arancel varía mucho por partida — no lo inventamos, lo estimás vos con lo que ya sabés de productos similares).</div>
         <div class="checkrow"><input type="checkbox" id="finConfirmado"><label style="margin:0;">Flete y arancel son cotización real del agente (no estimado)</label></div>
-        <div class="row2"><div><label>IVA (%)</label><input type="number" id="finIva" value="19"></div><div><label>Nacionalización/manejo (COP)</label><input type="number" id="finNacionalizacion" value="5000"></div></div>
-        <div class="row2"><div><label>Agencia aduanera (COP/u)</label><input type="number" id="finAgencia" value="0"></div><div><label>Transporte nacional (COP/u)</label><input type="number" id="finTransporte" value="0"></div></div>
+        <label>Cantidad de unidades del lote</label>
+        <input type="number" id="finLoteQty" placeholder="ej: 2500">
+        <div class="row2"><div><label>IVA (%)</label><input type="number" id="finIva" value="19"></div><div><label>Nacionalización/manejo — TOTAL del lote (COP)</label><input type="number" id="finNacionalizacion" value="0"></div></div>
+        <div class="row2"><div><label>Agencia aduanera — TOTAL del lote (COP)</label><input type="number" id="finAgencia" value="0"></div><div><label>Transporte nacional — TOTAL del lote (COP)</label><input type="number" id="finTransporte" value="0"></div></div>
+        <div class="note">Estos 3 son costos fijos por embarque, no por unidad — poné el total que te cotice el agente y la herramienta lo divide entre la cantidad del lote.</div>
         <div class="row2"><div><label>Empaque (COP/u)</label><input type="number" id="finEmpaque" value="0"></div><div><label>Otros gastos (COP/u)</label><input type="number" id="finOtros" value="0"></div></div>
         <div class="row3">
           <div><label>Comisión ML (%)</label><input type="number" id="finComision" value="16"></div>
@@ -373,7 +376,11 @@ function calcFinancials(){
   const v = id => parseFloat(document.getElementById(id).value) || 0;
   const fobUsd = v('finFob'), fleteUsd = v('finFlete'), seguroPct = v('finSeguro')||1;
   const trm = v('finTrm'), arancelPct = v('finArancel'), ivaPct = v('finIva')||19;
-  const nacionalizacion = v('finNacionalizacion'), agencia = v('finAgencia'), transporte = v('finTransporte');
+  const nacionalizacionTotal = v('finNacionalizacion'), agenciaTotal = v('finAgencia'), transporteTotal = v('finTransporte');
+  const loteQty = v('finLoteQty') || 1;
+  const nacionalizacion = nacionalizacionTotal / loteQty;
+  const agencia = agenciaTotal / loteQty;
+  const transporte = transporteTotal / loteQty;
   const empaque = v('finEmpaque'), otros = v('finOtros');
   const comisionPct = v('finComision'), publicidadPct = v('finPublicidad'), retencionesPct = v('finRetenciones')||3.5;
   const costoFinPct = v('finCostoFin'), garantiasPct = v('finGarantias');
@@ -711,6 +718,8 @@ document.getElementById('calcBtn').addEventListener('click', ()=>{
   const nombre = document.getElementById('nicheName').value.trim();
   if(!nombre){ statusEl.textContent='Ponle nombre al nicho.'; statusEl.className='status err'; return; }
   if(!parseFloat(document.getElementById('finTrm').value)){ statusEl.textContent='Falta la TRM.'; statusEl.className='status err'; return; }
+  const loteTotales = (parseFloat(document.getElementById('finNacionalizacion').value)||0) + (parseFloat(document.getElementById('finAgencia').value)||0) + (parseFloat(document.getElementById('finTransporte').value)||0);
+  if(loteTotales>0 && !parseFloat(document.getElementById('finLoteQty').value)){ statusEl.textContent='Pusiste costos de lote pero falta la cantidad de unidades del lote.'; statusEl.className='status err'; return; }
 
   const ml = calcMlIndices();
   const meta = calcMetaIndex();
